@@ -16,6 +16,8 @@ import { uploadHomeworkImage } from "../uploadHomeworkImage.js";
 import PostCard from "../components/PostCard.jsx";
 import SnapPrompt from "../components/SnapPrompt.jsx";
 import AddFriend from "../components/AddFriend.jsx";
+import FriendsList from "../components/FriendsList.jsx";
+import FriendRequests from "../components/FriendRequests.jsx";
 
 function chunkArray(arr, size) {
   const out = [];
@@ -43,6 +45,8 @@ function mapPostDoc(docSnap) {
     author: d.authorLabel?.trim() || "User",
     body: d.body ?? "",
     imageUrl: typeof d.imageUrl === "string" ? d.imageUrl : "",
+    upvotes: Array.isArray(d.upvotes) ? d.upvotes : [],
+    downvotes: Array.isArray(d.downvotes) ? d.downvotes : [],
     time: formatRelativeTime(createdAt),
     dateTime: date ? date.toISOString() : "",
     _sort: createdAt?.seconds ?? 0,
@@ -55,6 +59,10 @@ function sortKey(a, b) {
 
 export default function Feed() {
   const [uid, setUid] = useState(() => auth.currentUser?.uid ?? null);
+  const [currentUserEmail, setCurrentUserEmail] = useState(
+    () => auth.currentUser?.email ?? ""
+  );
+  /** UIDs from `users/{uid}.friends` — populated when friend requests are accepted */
   const [friendIds, setFriendIds] = useState([]);
   const [friendsLoading, setFriendsLoading] = useState(true);
   const [posts, setPosts] = useState([]);
@@ -63,6 +71,7 @@ export default function Feed() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setUid(user?.uid ?? null);
+      setCurrentUserEmail(user?.email ?? "");
       if (user) ensureUserProfile(user);
     });
     return () => unsub();
@@ -95,6 +104,7 @@ export default function Feed() {
       return;
     }
 
+    /** Your posts plus posts from everyone in your accepted `friends` list */
     const authorIds = [...new Set([uid, ...friendIds])];
     const chunks = chunkArray(authorIds, 10);
     chunkMapsRef.current = chunks.map(() => new Map());
@@ -140,6 +150,8 @@ export default function Feed() {
       authorId: user.uid,
       body: trimmed,
       ...(imageUrl ? { imageUrl } : {}),
+      upvotes: [],
+      downvotes: [],
       createdAt: serverTimestamp(),
       authorLabel: user.displayName?.trim() || user.email || "User",
     });
@@ -157,42 +169,56 @@ export default function Feed() {
 
   return (
     <div className="page feed-page">
-      <h1 className="page-title">Feed</h1>
-      <p className="page-lead feed-intro">
-        Share assignment updates and photos. You and your friends see each other’s posts here.
-      </p>
-      <SnapPrompt onSubmit={handleNewPost} />
-      <AddFriend />
-      <section className="feed-list" aria-label="Assignment posts from you and your friends">
-        {friendsLoading ? (
-          <p className="page-lead">Loading feed…</p>
-        ) : (
-          <>
-            {!hasFriends && (
-              <p className="feed-empty">
-                Add friends to see their posts here.
-              </p>
-            )}
-            {posts.length === 0 ? (
-              hasFriends ? (
-                <p className="page-lead">No posts yet.</p>
-              ) : null
+      <div className="feed-layout">
+        <div className="feed-sidebar-column">
+          <FriendsList />
+          <FriendRequests />
+        </div>
+        <div className="feed-main-column">
+          <h1 className="page-title">Feed</h1>
+          <p className="page-lead feed-intro">
+            Share assignment updates and photos. Your feed includes your posts
+            and posts from friends you&apos;ve accepted (from your friends list).
+          </p>
+          <SnapPrompt onSubmit={handleNewPost} />
+          <AddFriend />
+          <section
+            className="feed-list"
+            aria-label="Your posts and posts from accepted friends"
+          >
+            {friendsLoading ? (
+              <p className="page-lead">Loading feed…</p>
             ) : (
-              posts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  onDelete={
-                    uid != null && post.authorId === uid
-                      ? () => handleDeletePost(post.id)
-                      : undefined
-                  }
-                />
-              ))
+              <>
+                {!hasFriends && (
+                  <p className="feed-empty">
+                    No friends yet — add friends to see their posts
+                  </p>
+                )}
+                {posts.length === 0 ? (
+                  hasFriends ? (
+                    <p className="page-lead">No posts yet.</p>
+                  ) : null
+                ) : (
+                  posts.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      currentUserId={uid}
+                      currentUserEmail={currentUserEmail}
+                      onDelete={
+                        uid != null && post.authorId === uid
+                          ? () => handleDeletePost(post.id)
+                          : undefined
+                      }
+                    />
+                  ))
+                )}
+              </>
             )}
-          </>
-        )}
-      </section>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

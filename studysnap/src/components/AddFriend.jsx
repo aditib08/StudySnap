@@ -7,14 +7,30 @@ import {
   limit,
   doc,
   getDoc,
-  updateDoc,
-  arrayUnion,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
 import { ensureUserProfile } from "../userProfile.js";
 
 function normalizeEmail(value) {
   return value.trim().toLowerCase();
+}
+
+/** Any friendRequests between two users (either direction). */
+async function fetchPairFriendRequests(meId, themId) {
+  const qOut = query(
+    collection(db, "friendRequests"),
+    where("fromUserId", "==", meId),
+    where("toUserId", "==", themId)
+  );
+  const qIn = query(
+    collection(db, "friendRequests"),
+    where("fromUserId", "==", themId),
+    where("toUserId", "==", meId)
+  );
+  const [outSnap, inSnap] = await Promise.all([getDocs(qOut), getDocs(qIn)]);
+  return [...outSnap.docs, ...inSnap.docs].map((d) => ({ id: d.id, ...d.data() }));
 }
 
 export default function AddFriend() {
@@ -54,6 +70,7 @@ export default function AddFriend() {
 
       const friendDoc = snap.docs[0];
       const friendId = friendDoc.id;
+      const toEmail = normalizeEmail(friendDoc.data()?.email ?? normalized);
 
       if (friendId === user.uid) {
         setStatus({
@@ -66,21 +83,55 @@ export default function AddFriend() {
       await ensureUserProfile(user);
       const meRef = doc(db, "users", user.uid);
       const meSnap = await getDoc(meRef);
-      const existing = meSnap.data()?.friends;
-      const list = Array.isArray(existing) ? existing : [];
-      if (list.includes(friendId)) {
+      const friendsList = Array.isArray(meSnap.data()?.friends)
+        ? meSnap.data().friends
+        : [];
+      if (friendsList.includes(friendId)) {
         setStatus({
           type: "error",
-          text: "Already in your friends list.",
+          text: "You're already friends with this user.",
         });
         return;
       }
 
-      await updateDoc(meRef, {
-        friends: arrayUnion(friendId),
+      const pair = await fetchPairFriendRequests(user.uid, friendId);
+      for (const r of pair) {
+        const st = r.status;
+        if (st === "accepted") {
+          setStatus({
+            type: "error",
+            text: "You're already friends with this user.",
+          });
+          return;
+        }
+        if (st === "pending") {
+          if (r.fromUserId === user.uid) {
+            setStatus({
+              type: "error",
+              text: "You already sent a friend request to this person.",
+            });
+          } else {
+            setStatus({
+              type: "error",
+              text: "This person already sent you a friend request.",
+            });
+          }
+          return;
+        }
+      }
+
+      const fromEmail = normalizeEmail(user.email ?? "");
+
+      await addDoc(collection(db, "friendRequests"), {
+        fromUserId: user.uid,
+        fromUserEmail: fromEmail,
+        toUserId: friendId,
+        toUserEmail: toEmail,
+        status: "pending",
+        createdAt: serverTimestamp(),
       });
 
-      setStatus({ type: "success", text: "Friend added!" });
+      setStatus({ type: "success", text: "Request sent!" });
       setEmail("");
     } catch (err) {
       setStatus({
@@ -95,7 +146,9 @@ export default function AddFriend() {
   return (
     <div className="card add-friend">
       <h2 className="card-title">Add a friend</h2>
-      <p className="card-desc">Enter a friend&apos;s account email to see their snaps.</p>
+      <p className="card-desc">
+        Enter a friend&apos;s account email to send them a friend request.
+      </p>
       <form className="add-friend-form" onSubmit={handleSubmit}>
         <input
           type="email"
@@ -110,7 +163,7 @@ export default function AddFriend() {
           className="btn btn-secondary"
           disabled={loading}
         >
-          {loading ? "…" : "Add"}
+          {loading ? "…" : "Send request"}
         </button>
       </form>
       {status?.type === "success" && (
