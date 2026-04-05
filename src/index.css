@@ -494,6 +494,33 @@ select {
   border-top: 1px solid var(--border);
 }
 
+.post-validation-msg {
+  width: 100%;
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.post-validation-msg--not {
+  color: var(--muted);
+}
+
+.post-vote-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.post-vote-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
 .post-vote-btn {
   display: inline-flex;
   align-items: center;

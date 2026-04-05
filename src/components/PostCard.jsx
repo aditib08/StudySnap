@@ -16,16 +16,18 @@ export default function PostCard({
   const downvotes = Array.isArray(post.downvotes) ? post.downvotes : [];
   const upCount = upvotes.length;
   const downCount = downvotes.length;
+  /** Author-only label: validated when strictly more upvotes than downvotes */
+  const snapValidated = upCount > downCount;
 
   const isOwnPost = Boolean(currentUserId && post.authorId === currentUserId);
-  /** Validation only on others' posts (friends), not your own */
-  const showValidation = Boolean(currentUserId && !isOwnPost);
+  /** Logged-in viewers see validation: friends can vote; author sees counts + message */
+  const showVoteRow = Boolean(currentUserId);
 
   const votedUp = Boolean(currentUserId && upvotes.includes(currentUserId));
   const votedDown = Boolean(currentUserId && downvotes.includes(currentUserId));
 
   async function handleVote(direction) {
-    if (!currentUserId || !showValidation) return;
+    if (!currentUserId || isOwnPost) return;
     setVoteError(null);
     setVoteBusy(true);
     try {
@@ -73,35 +75,65 @@ export default function PostCard({
         </a>
       ) : null}
 
-      {showValidation ? (
-        <div className="post-votes" role="group" aria-label="Validate this post">
-          <button
-            type="button"
-            className={`btn post-vote-btn${votedUp ? " post-vote-btn--active" : ""}`}
-            onClick={() => handleVote("up")}
-            disabled={voteBusy}
-            aria-pressed={votedUp}
-            aria-label={`Thumbs up, ${upCount} votes`}
-          >
-            <span aria-hidden="true">👍</span>{" "}
-            <span className="post-vote-count">{upCount}</span>
-          </button>
-          <button
-            type="button"
-            className={`btn post-vote-btn${votedDown ? " post-vote-btn--active" : ""}`}
-            onClick={() => handleVote("down")}
-            disabled={voteBusy}
-            aria-pressed={votedDown}
-            aria-label={`Thumbs down, ${downCount} votes`}
-          >
-            <span aria-hidden="true">👎</span>{" "}
-            <span className="post-vote-count">{downCount}</span>
-          </button>
-          {voteError ? (
-            <p className="form-error post-vote-error" role="alert">
-              {voteError}
-            </p>
-          ) : null}
+      {showVoteRow ? (
+        <div
+          className="post-votes"
+          role="group"
+          aria-label={
+            isOwnPost
+              ? "Validation counts on your post"
+              : "Validate this post"
+          }
+        >
+          {isOwnPost ? (
+            <>
+              <p
+                className={`post-validation-msg${snapValidated ? "" : " post-validation-msg--not"}`}
+              >
+                {snapValidated ? "Study Snap Validated!" : "Not validated"}
+              </p>
+              <div className="post-vote-summary" aria-live="polite">
+                <span className="post-vote-readonly">
+                  <span aria-hidden="true">👍</span>{" "}
+                  <span className="post-vote-count">{upCount}</span>
+                </span>
+                <span className="post-vote-readonly">
+                  <span aria-hidden="true">👎</span>{" "}
+                  <span className="post-vote-count">{downCount}</span>
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={`btn post-vote-btn${votedUp ? " post-vote-btn--active" : ""}`}
+                onClick={() => handleVote("up")}
+                disabled={voteBusy}
+                aria-pressed={votedUp}
+                aria-label={`Thumbs up, ${upCount} votes`}
+              >
+                <span aria-hidden="true">👍</span>{" "}
+                <span className="post-vote-count">{upCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`btn post-vote-btn${votedDown ? " post-vote-btn--active" : ""}`}
+                onClick={() => handleVote("down")}
+                disabled={voteBusy}
+                aria-pressed={votedDown}
+                aria-label={`Thumbs down, ${downCount} votes`}
+              >
+                <span aria-hidden="true">👎</span>{" "}
+                <span className="post-vote-count">{downCount}</span>
+              </button>
+              {voteError ? (
+                <p className="form-error post-vote-error" role="alert">
+                  {voteError}
+                </p>
+              ) : null}
+            </>
+          )}
         </div>
       ) : null}
 
