@@ -11,11 +11,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
-import { ensureUserProfile } from "../userProfile.js";
-
-function normalizeEmail(value) {
-  return value.trim().toLowerCase();
-}
+import { ensureUserProfile, normalizeUserEmail } from "../userProfile.js";
 
 /** Any friendRequests between two users (either direction). */
 async function fetchPairFriendRequests(meId, themId) {
@@ -46,13 +42,15 @@ export default function AddFriend() {
       return;
     }
 
-    const normalized = normalizeEmail(email);
+    const normalized = normalizeUserEmail(email);
     if (!normalized) return;
 
     setLoading(true);
     setStatus(null);
 
     try {
+      await ensureUserProfile(user);
+
       const q = query(
         collection(db, "users"),
         where("email", "==", normalized),
@@ -63,14 +61,15 @@ export default function AddFriend() {
       if (snap.empty) {
         setStatus({
           type: "error",
-          text: "No user found with that email",
+          text:
+            "No account with that email found. They need to sign in to StudySnap at least once so their profile exists.",
         });
         return;
       }
 
       const friendDoc = snap.docs[0];
       const friendId = friendDoc.id;
-      const toEmail = normalizeEmail(friendDoc.data()?.email ?? normalized);
+      const toEmail = normalizeUserEmail(friendDoc.data()?.email ?? normalized);
 
       if (friendId === user.uid) {
         setStatus({
@@ -80,7 +79,6 @@ export default function AddFriend() {
         return;
       }
 
-      await ensureUserProfile(user);
       const meRef = doc(db, "users", user.uid);
       const meSnap = await getDoc(meRef);
       const friendsList = Array.isArray(meSnap.data()?.friends)
@@ -120,7 +118,7 @@ export default function AddFriend() {
         }
       }
 
-      const fromEmail = normalizeEmail(user.email ?? "");
+      const fromEmail = normalizeUserEmail(user.email ?? "");
 
       await addDoc(collection(db, "friendRequests"), {
         fromUserId: user.uid,

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase.js";
+import { ensureUserProfile } from "./userProfile.js";
 import Navbar from "./components/Navbar.jsx";
 import Login from "./pages/Login.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
@@ -14,6 +15,11 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      if (nextUser) {
+        ensureUserProfile(nextUser).catch((err) =>
+          console.error("ensureUserProfile", err)
+        );
+      }
       setUser(nextUser);
       setAuthReady(true);
     });

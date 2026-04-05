@@ -1,11 +1,16 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
 
+/** Lowercase trimmed email for Firestore queries and `users/{uid}.email` */
+export function normalizeUserEmail(value) {
+  return (value ?? "").trim().toLowerCase();
+}
+
 export async function ensureUserProfile(user) {
   if (!user?.uid) return;
   const ref = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
-  const email = (user.email ?? "").trim().toLowerCase();
+  const email = normalizeUserEmail(user.email);
   if (!snap.exists()) {
     await setDoc(ref, {
       email,

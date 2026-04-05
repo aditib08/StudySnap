@@ -9,8 +9,10 @@ import {
   writeBatch,
   arrayUnion,
   updateDoc,
+  setDoc,
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
+import { normalizeUserEmail } from "../userProfile.js";
 
 export default function FriendRequests() {
   const [uid, setUid] = useState(() => auth.currentUser?.uid ?? null);
@@ -68,12 +70,25 @@ export default function FriendRequests() {
       const batch = writeBatch(db);
       const reqRef = doc(db, "friendRequests", r.id);
       batch.update(reqRef, { status: "accepted" });
-      batch.update(doc(db, "users", fromId), {
-        friends: arrayUnion(toId),
-      });
-      batch.update(doc(db, "users", toId), {
-        friends: arrayUnion(fromId),
-      });
+      const fromEmail = normalizeUserEmail(r.fromUserEmail);
+      const toEmail = normalizeUserEmail(r.toUserEmail);
+      /** merge: true + arrayUnion keeps both users symmetric even if a user doc was missing */
+      batch.set(
+        doc(db, "users", fromId),
+        {
+          ...(fromEmail ? { email: fromEmail } : {}),
+          friends: arrayUnion(toId),
+        },
+        { merge: true }
+      );
+      batch.set(
+        doc(db, "users", toId),
+        {
+          ...(toEmail ? { email: toEmail } : {}),
+          friends: arrayUnion(fromId),
+        },
+        { merge: true }
+      );
       await batch.commit();
     } catch (e) {
       setError(e?.message || "Could not accept request.");
