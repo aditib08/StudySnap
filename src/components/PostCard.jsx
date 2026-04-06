@@ -43,11 +43,8 @@ export default function PostCard({
     <article className="card post-card">
       <header className="post-header">
         <span className="post-author">{post.author}</span>
-        <div className="post-header-meta">
-          <time className="post-time" dateTime={post.dateTime || post.time}>
-            {post.time}
-          </time>
-          {onDelete ? (
+        {onDelete ? (
+          <div className="post-header-meta">
             <button
               type="button"
               className="btn post-remove"
@@ -55,8 +52,8 @@ export default function PostCard({
             >
               Remove
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </header>
       {post.body ? <p className="post-body">{post.body}</p> : null}
       {post.imageUrl ? (

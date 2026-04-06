@@ -32,16 +32,6 @@ const EMOJI_PICKER_EMOJIS = [
   "👀",
 ];
 
-function formatCommentTime(ts) {
-  if (!ts?.toDate) return "";
-  return ts.toDate().toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export default function PostComments({
   postId,
   postAuthorId,
@@ -146,9 +136,6 @@ export default function PostComments({
             <li key={c.id} className="post-comment-item">
               <span className="post-comment-email">
                 {(c.userEmail ?? "").trim() || "Unknown"}
-              </span>
-              <span className="post-comment-time">
-                {formatCommentTime(c.createdAt)}
               </span>
               <p className="post-comment-text">{c.text ?? ""}</p>
             </li>

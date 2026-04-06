@@ -25,20 +25,9 @@ function chunkArray(arr, size) {
   return out;
 }
 
-function formatRelativeTime(ts) {
-  if (!ts?.toDate) return "";
-  const d = ts.toDate();
-  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (sec < 60) return "just now";
-  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 function mapPostDoc(docSnap) {
   const d = docSnap.data();
   const createdAt = d.createdAt;
-  const date = createdAt?.toDate?.();
   return {
     id: docSnap.id,
     authorId: d.authorId ?? "",
@@ -47,8 +36,6 @@ function mapPostDoc(docSnap) {
     imageUrl: typeof d.imageUrl === "string" ? d.imageUrl : "",
     upvotes: Array.isArray(d.upvotes) ? d.upvotes : [],
     downvotes: Array.isArray(d.downvotes) ? d.downvotes : [],
-    time: formatRelativeTime(createdAt),
-    dateTime: date ? date.toISOString() : "",
     _sort: createdAt?.seconds ?? 0,
   };
 }

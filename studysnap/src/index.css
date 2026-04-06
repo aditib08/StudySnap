@@ -442,11 +442,6 @@ select {
   min-width: 0;
 }
 
-.post-time {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
 .post-remove {
   padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
@@ -595,15 +590,11 @@ select {
 }
 
 .post-comment-email {
+  display: block;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--accent);
-  margin-right: 0.5rem;
-}
-
-.post-comment-time {
-  font-size: 0.75rem;
-  color: var(--muted);
+  margin-bottom: 0.35rem;
 }
 
 .post-comment-text {
