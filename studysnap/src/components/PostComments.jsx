@@ -37,6 +37,7 @@ export default function PostComments({
   postAuthorId,
   currentUserId,
   currentUserEmail,
+  currentUserLabel,
 }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
@@ -90,9 +91,13 @@ export default function PostComments({
     setError(null);
     setSubmitting(true);
     try {
+      const emailRaw = (currentUserEmail ?? "").trim() || "unknown";
+      const label =
+        (currentUserLabel ?? "").trim() || emailRaw;
       await addDoc(collection(db, "posts", postId, "comments"), {
         userId: currentUserId,
-        userEmail: (currentUserEmail ?? "").trim() || "unknown",
+        userEmail: emailRaw,
+        userLabel: label,
         text: trimmed,
         createdAt: serverTimestamp(),
       });
@@ -135,7 +140,7 @@ export default function PostComments({
           comments.map((c) => (
             <li key={c.id} className="post-comment-item">
               <span className="post-comment-email">
-                {(c.userEmail ?? "").trim() || "Unknown"}
+                {(c.userLabel ?? c.userEmail ?? "").trim() || "Unknown"}
               </span>
               <p className="post-comment-text">{c.text ?? ""}</p>
             </li>

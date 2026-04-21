@@ -8,6 +8,7 @@ export default function PostCard({
   onDelete,
   currentUserId,
   currentUserEmail,
+  currentUserLabel,
 }) {
   const [voteError, setVoteError] = useState(null);
   const [voteBusy, setVoteBusy] = useState(false);
@@ -139,6 +140,7 @@ export default function PostCard({
         postAuthorId={post.authorId}
         currentUserId={currentUserId}
         currentUserEmail={currentUserEmail}
+        currentUserLabel={currentUserLabel}
       />
     </article>
   );

@@ -9,7 +9,6 @@ import {
   writeBatch,
   arrayUnion,
   updateDoc,
-  setDoc,
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
 import { normalizeUserEmail } from "../userProfile.js";

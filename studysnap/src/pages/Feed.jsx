@@ -13,6 +13,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase.js";
 import { ensureUserProfile } from "../userProfile.js";
 import { recomputeUserStreak } from "../userStreak.js";
+import { resolveAuthorLabel } from "../syncPostAuthorLabels.js";
 import { uploadHomeworkImage } from "../uploadHomeworkImage.js";
 import PostCard from "../components/PostCard.jsx";
 import SnapPrompt from "../components/SnapPrompt.jsx";
@@ -50,6 +51,8 @@ export default function Feed() {
   const [currentUserEmail, setCurrentUserEmail] = useState(
     () => auth.currentUser?.email ?? ""
   );
+  /** Firestore `users/{uid}.displayName` — drives labels with email fallback */
+  const [profileDisplayName, setProfileDisplayName] = useState("");
   /** UIDs from `users/{uid}.friends` — populated when friend requests are accepted */
   const [friendIds, setFriendIds] = useState([]);
   const [friendsLoading, setFriendsLoading] = useState(true);
@@ -68,6 +71,7 @@ export default function Feed() {
   useEffect(() => {
     if (!uid) {
       setFriendIds([]);
+      setProfileDisplayName("");
       setFriendsLoading(false);
       return;
     }
@@ -79,6 +83,7 @@ export default function Feed() {
         const data = snap.data();
         const friends = data?.friends;
         setFriendIds(Array.isArray(friends) ? friends : []);
+        setProfileDisplayName((data?.displayName ?? "").trim());
         setFriendsLoading(false);
       },
       () => setFriendsLoading(false)
@@ -148,7 +153,7 @@ export default function Feed() {
       upvotes: [],
       downvotes: [],
       createdAt: serverTimestamp(),
-      authorLabel: user.displayName?.trim() || user.email || "User",
+      authorLabel: resolveAuthorLabel(profileDisplayName, user.email ?? ""),
     });
   }
 
@@ -162,6 +167,10 @@ export default function Feed() {
   }
 
   const hasFriends = friendIds.length > 0;
+  const currentUserLabel = resolveAuthorLabel(
+    profileDisplayName,
+    currentUserEmail
+  );
 
   return (
     <div className="page feed-page">
@@ -202,6 +211,7 @@ export default function Feed() {
                       post={post}
                       currentUserId={uid}
                       currentUserEmail={currentUserEmail}
+                      currentUserLabel={currentUserLabel}
                       onDelete={
                         uid != null && post.authorId === uid
                           ? () => handleDeletePost(post.id)
