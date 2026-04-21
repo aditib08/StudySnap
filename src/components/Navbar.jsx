@@ -1,18 +1,34 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth } from "../firebase.js";
+import { db } from "../firebase.js";
 
 const linkClass = ({ isActive }) =>
   "nav-link" + (isActive ? " nav-link-active" : "");
 
 export default function Navbar() {
   const [user, setUser] = useState(() => auth.currentUser);
+  const [streakCount, setStreakCount] = useState(0);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setStreakCount(0);
+      return;
+    }
+    const userRef = doc(db, "users", user.uid);
+    return onSnapshot(userRef, (snap) => {
+      const raw = snap.data()?.streakCount;
+      const safe = Number.isFinite(raw) ? raw : 0;
+      setStreakCount(Math.max(0, safe));
+    });
+  }, [user?.uid]);
 
   const displayLabel =
     user?.displayName?.trim() || user?.email || "Signed in";
@@ -36,6 +52,9 @@ export default function Navbar() {
           </NavLink>
         </nav>
         <div className="navbar-user">
+          <span className="navbar-streak" aria-live="polite">
+            Streak: {streakCount} {streakCount === 1 ? "day" : "days"}
+          </span>
           <span
             className="navbar-user-label"
             title={user?.email ?? ""}

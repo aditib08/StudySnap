@@ -12,6 +12,7 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase.js";
 import { ensureUserProfile } from "../userProfile.js";
+import { recomputeUserStreak } from "../userStreak.js";
 import { uploadHomeworkImage } from "../uploadHomeworkImage.js";
 import PostCard from "../components/PostCard.jsx";
 import SnapPrompt from "../components/SnapPrompt.jsx";
@@ -86,6 +87,13 @@ export default function Feed() {
   }, [uid]);
 
   useEffect(() => {
+    if (!uid) return;
+    recomputeUserStreak(db, uid).catch(() => {
+      // Keep feed usable even if streak recompute fails.
+    });
+  }, [uid]);
+
+  useEffect(() => {
     if (!uid) {
       setPosts([]);
       return;
@@ -150,6 +158,7 @@ export default function Feed() {
     const ok = window.confirm("Remove this post from your feed?");
     if (!ok) return;
     await deleteDoc(doc(db, "posts", postId));
+    await recomputeUserStreak(db, user.uid);
   }
 
   const hasFriends = friendIds.length > 0;
