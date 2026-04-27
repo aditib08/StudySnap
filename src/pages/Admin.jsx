@@ -130,7 +130,7 @@ export default function Admin() {
           }
           const loginCount = Number.isFinite(d?.loginCount)
             ? Math.max(0, d.loginCount)
-            : 0;
+            : 1;
           totalLogins += loginCount;
         });
 
@@ -149,7 +149,7 @@ export default function Admin() {
           totalDownvotes,
           acceptedFriendshipsApprox: Math.floor(totalFriendEdges / 2),
           avgLoginsPerDay:
-            usersSnap.size > 0 ? totalLogins / usersSnap.size : 0,
+            usersSnap.size > 0 ? Math.max(1, totalLogins / usersSnap.size) : 1,
           avgStreakAmongUsers:
             usersSnap.size > 0 ? streakSum / usersSnap.size : 0,
           maxStreakSeen: streakMax,
@@ -252,7 +252,7 @@ export default function Admin() {
           .map((u) => {
             const logins = Number.isFinite(u?.loginCount)
               ? Math.max(0, u.loginCount)
-              : 0;
+              : 1;
             return {
               id: u.id,
               label:
