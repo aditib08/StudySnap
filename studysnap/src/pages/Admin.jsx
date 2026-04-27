@@ -3,31 +3,18 @@ import { Navigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
-  doc,
-  getDoc,
   getDocs,
-  query,
-  where,
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
 import { isAdminUser } from "../adminConfig.js";
 
-function sortEntriesDesc(map) {
-  return [...map.entries()].sort((a, b) => b[1] - a[1]);
-}
-
 const DETAIL_KEYS = {
   totalPosts: "totalPosts",
   approvedSnaps: "approvedSnaps",
-  uniquePosters: "uniquePosters",
   registeredUsers: "registeredUsers",
   avgComments: "avgComments",
-  snaps7d: "snaps7d",
-  withPhoto: "withPhoto",
-  textOnly: "textOnly",
   thumbsUp: "thumbsUp",
   thumbsDown: "thumbsDown",
-  pendingRequests: "pendingRequests",
   friendLinks: "friendLinks",
   highestStreak: "highestStreak",
   avgStreak: "avgStreak",
@@ -36,15 +23,10 @@ const DETAIL_KEYS = {
 const DETAIL_TITLES = {
   [DETAIL_KEYS.totalPosts]: "All snaps",
   [DETAIL_KEYS.approvedSnaps]: "Approved snaps",
-  [DETAIL_KEYS.uniquePosters]: "Unique posters (by snap count)",
   [DETAIL_KEYS.registeredUsers]: "Registered users",
   [DETAIL_KEYS.avgComments]: "Comments per post",
-  [DETAIL_KEYS.snaps7d]: "Snaps in the last 7 days",
-  [DETAIL_KEYS.withPhoto]: "Snaps with a photo",
-  [DETAIL_KEYS.textOnly]: "Text-only snaps",
   [DETAIL_KEYS.thumbsUp]: "Thumbs up — per post",
   [DETAIL_KEYS.thumbsDown]: "Thumbs down — per post",
-  [DETAIL_KEYS.pendingRequests]: "Pending friend requests",
   [DETAIL_KEYS.friendLinks]: "Friend counts per user",
   [DETAIL_KEYS.highestStreak]: "Streak leaderboard",
   [DETAIL_KEYS.avgStreak]: "Streak value per profile",
@@ -56,7 +38,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
-  /** @type {{ posts: object[], users: object[], pendingRequests: object[] } | null} */
+  /** @type {{ posts: object[], users: object[] } | null} */
   const [rawData, setRawData] = useState(null);
   const [detailKey, setDetailKey] = useState(null);
 
@@ -93,47 +75,16 @@ export default function Admin() {
           getDocs(collection(db, "users")),
         ]);
 
-        let pendingList = [];
-        try {
-          const pendingSnap = await getDocs(
-            query(
-              collection(db, "friendRequests"),
-              where("status", "==", "pending")
-            )
-          );
-          pendingList = pendingSnap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-          }));
-        } catch {
-          pendingList = [];
-        }
-
         if (cancelled) return;
 
         const posts = postsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         const users = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const byAuthor = new Map();
-        let postsWithImage = 0;
-        let postsLast7Days = 0;
         let totalUpvotes = 0;
         let totalDownvotes = 0;
         let approvedSnapsCount = 0;
-        const now = Date.now();
-        const weekMs = 7 * 24 * 60 * 60 * 1000;
         const commentsByPostId = new Map();
 
         for (const p of posts) {
-          const aid = typeof p.authorId === "string" ? p.authorId : "";
-          const key = aid || "unknown";
-          byAuthor.set(key, (byAuthor.get(key) || 0) + 1);
-          if (typeof p.imageUrl === "string" && p.imageUrl.trim()) {
-            postsWithImage += 1;
-          }
-          const created = p.createdAt?.toDate?.();
-          if (created && now - created.getTime() <= weekMs) {
-            postsLast7Days += 1;
-          }
           const ups = Array.isArray(p.upvotes) ? p.upvotes.length : 0;
           const downs = Array.isArray(p.downvotes) ? p.downvotes.length : 0;
           totalUpvotes += ups;
@@ -162,30 +113,6 @@ export default function Admin() {
           totalComments += count;
         });
 
-        const topPosterEntries = sortEntriesDesc(byAuthor).slice(0, 15);
-        const topPosters = await Promise.all(
-          topPosterEntries.map(async ([uid, count]) => {
-            if (uid === "unknown") {
-              return {
-                uid,
-                count,
-                label: "(missing authorId)",
-                email: "",
-              };
-            }
-            const us = await getDoc(doc(db, "users", uid));
-            const d = us.exists() ? us.data() : null;
-            const em = (d?.email ?? "").trim();
-            const name = (d?.displayName ?? "").trim();
-            return {
-              uid,
-              count,
-              label: name || em || `${uid.slice(0, 8)}…`,
-              email: em,
-            };
-          })
-        );
-
         let totalFriendEdges = 0;
         let streakSum = 0;
         let streakMax = 0;
@@ -200,46 +127,23 @@ export default function Admin() {
           }
         });
 
-        const topStreakUsers = [];
-        usersSnap.forEach((docu) => {
-          const d = docu.data();
-          const s = d?.streakCount;
-          if (!Number.isFinite(s) || s <= 0) return;
-          const em = (d?.email ?? "").trim();
-          const name = (d?.displayName ?? "").trim();
-          topStreakUsers.push({
-            uid: docu.id,
-            streak: s,
-            label: name || em || docu.id.slice(0, 8),
-          });
-        });
-        topStreakUsers.sort((a, b) => b.streak - a.streak);
-        const topStreaks = topStreakUsers.slice(0, 10);
-
         if (cancelled) return;
 
-        setRawData({ posts: postsWithCommentCount, users, pendingRequests: pendingList });
+        setRawData({ posts: postsWithCommentCount, users });
         setStats({
           totalPosts: postsWithCommentCount.length,
           approvedSnapsCount,
-          uniquePosters: byAuthor.size,
-          postsWithImage,
-          postsTextOnly: postsWithCommentCount.length - postsWithImage,
-          postsLast7Days,
           totalRegisteredUsers: usersSnap.size,
           avgCommentsPerPost:
             postsWithCommentCount.length > 0
               ? totalComments / postsWithCommentCount.length
               : 0,
-          pendingFriendRequests: pendingList.length,
           totalUpvotes,
           totalDownvotes,
           acceptedFriendshipsApprox: Math.floor(totalFriendEdges / 2),
           avgStreakAmongUsers:
             usersSnap.size > 0 ? streakSum / usersSnap.size : 0,
           maxStreakSeen: streakMax,
-          topPosters,
-          topStreaks,
         });
       } catch (e) {
         if (!cancelled) {
@@ -269,9 +173,7 @@ export default function Admin() {
 
   const detailRows = useMemo(() => {
     if (!rawData || !detailKey) return null;
-    const { posts, users, pendingRequests } = rawData;
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-    const now = Date.now();
+    const { posts, users } = rawData;
 
     switch (detailKey) {
       case DETAIL_KEYS.totalPosts:
@@ -326,25 +228,6 @@ export default function Admin() {
             commentCount: Number.isFinite(p.commentCount) ? p.commentCount : 0,
           }))
           .sort((a, b) => b.commentCount - a.commentCount);
-      case DETAIL_KEYS.uniquePosters: {
-        const m = new Map();
-        for (const p of posts) {
-          const aid = typeof p.authorId === "string" ? p.authorId : "";
-          const k = aid || "unknown";
-          m.set(k, (m.get(k) || 0) + 1);
-        }
-        return sortEntriesDesc(m).map(([uid, count]) => ({
-          uid,
-          count,
-          label:
-            uid === "unknown"
-              ? "(missing authorId)"
-              : userLabelById.get(uid) || uid.slice(0, 12),
-          email:
-            users.find((u) => u.id === uid)?.email?.trim() ||
-            (uid === "unknown" ? "" : "—"),
-        }));
-      }
       case DETAIL_KEYS.registeredUsers:
         return users
           .map((u) => ({
@@ -355,51 +238,6 @@ export default function Admin() {
             streak: Number.isFinite(u.streakCount) ? u.streakCount : "—",
           }))
           .sort((a, b) => a.email.localeCompare(b.email));
-      case DETAIL_KEYS.snaps7d:
-        return [...posts]
-          .filter((p) => {
-            const t = p.createdAt?.toDate?.()?.getTime();
-            return t && now - t <= weekMs;
-          })
-          .sort((a, b) => {
-            const ta = a.createdAt?.toDate?.()?.getTime() ?? 0;
-            const tb = b.createdAt?.toDate?.()?.getTime() ?? 0;
-            return tb - ta;
-          })
-          .map((p) => ({
-            id: p.id,
-            author:
-              userLabelById.get(p.authorId) ||
-              (p.authorLabel ?? "").trim() ||
-              "—",
-            preview: ((p.body ?? "") + "").slice(0, 100),
-          }));
-      case DETAIL_KEYS.withPhoto:
-        return posts
-          .filter(
-            (p) => typeof p.imageUrl === "string" && p.imageUrl.trim()
-          )
-          .map((p) => ({
-            id: p.id,
-            author:
-              userLabelById.get(p.authorId) ||
-              (p.authorLabel ?? "").trim() ||
-              "—",
-            preview: ((p.body ?? "") + "").slice(0, 80),
-          }));
-      case DETAIL_KEYS.textOnly:
-        return posts
-          .filter(
-            (p) => !p.imageUrl || !String(p.imageUrl).trim()
-          )
-          .map((p) => ({
-            id: p.id,
-            author:
-              userLabelById.get(p.authorId) ||
-              (p.authorLabel ?? "").trim() ||
-              "—",
-            preview: ((p.body ?? "") + "").slice(0, 120),
-          }));
       case DETAIL_KEYS.thumbsUp:
         return posts
           .map((p) => ({
@@ -424,12 +262,6 @@ export default function Admin() {
             down: Array.isArray(p.downvotes) ? p.downvotes.length : 0,
           }))
           .sort((a, b) => b.down - a.down);
-      case DETAIL_KEYS.pendingRequests:
-        return pendingRequests.map((r) => ({
-          id: r.id ?? "",
-          from: (r.fromUserEmail ?? "").trim() || r.fromUserId || "—",
-          to: (r.toUserEmail ?? "").trim() || r.toUserId || "—",
-        }));
       case DETAIL_KEYS.friendLinks:
         return users
           .map((u) => ({
@@ -519,8 +351,8 @@ export default function Admin() {
           <pre className="admin-error-pre">{error}</pre>
           <p className="page-lead admin-error-hint">
             If you see “permission denied”, update Firestore security rules so
-            your admin account can read <code>posts</code>, <code>users</code>,
-            and <code>friendRequests</code> (or use a Cloud Function for
+            your admin account can read <code>posts</code> and <code>users</code>
+            (or use a Cloud Function for
             server-side aggregation).
           </p>
         </div>
@@ -683,33 +515,6 @@ function AdminDetailTable({ detailKey, rows }) {
     );
   }
 
-  if (detailKey === DETAIL_KEYS.uniquePosters) {
-    return (
-      <table className="admin-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>User ID</th>
-            <th>Label</th>
-            <th>Email</th>
-            <th>Snaps</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.uid}>
-              <td>{i + 1}</td>
-              <td className="admin-table-mono">{r.uid}</td>
-              <td>{r.label}</td>
-              <td className="admin-table-mono">{r.email || "—"}</td>
-              <td>{r.count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
   if (detailKey === DETAIL_KEYS.registeredUsers) {
     return (
       <table className="admin-table">
@@ -730,29 +535,6 @@ function AdminDetailTable({ detailKey, rows }) {
               <td>{r.name}</td>
               <td>{r.friends}</td>
               <td>{r.streak}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
-  if (detailKey === DETAIL_KEYS.snaps7d) {
-    return (
-      <table className="admin-table">
-        <thead>
-          <tr>
-            <th>Post ID</th>
-            <th>Author</th>
-            <th>Preview</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td className="admin-table-mono">{r.id.slice(0, 12)}…</td>
-              <td>{r.author}</td>
-              <td>{r.preview || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -785,29 +567,6 @@ function AdminDetailTable({ detailKey, rows }) {
     );
   }
 
-  if (detailKey === DETAIL_KEYS.withPhoto || detailKey === DETAIL_KEYS.textOnly) {
-    return (
-      <table className="admin-table">
-        <thead>
-          <tr>
-            <th>Post ID</th>
-            <th>Author</th>
-            <th>Preview</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td className="admin-table-mono">{r.id.slice(0, 12)}…</td>
-              <td>{r.author}</td>
-              <td>{r.preview || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
   if (detailKey === DETAIL_KEYS.thumbsUp || detailKey === DETAIL_KEYS.thumbsDown) {
     return (
       <table className="admin-table">
@@ -826,27 +585,6 @@ function AdminDetailTable({ detailKey, rows }) {
               <td>{r.author}</td>
               <td>{r.up}</td>
               <td>{r.down}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
-  if (detailKey === DETAIL_KEYS.pendingRequests) {
-    return (
-      <table className="admin-table">
-        <thead>
-          <tr>
-            <th>From</th>
-            <th>To</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.from}</td>
-              <td>{r.to}</td>
             </tr>
           ))}
         </tbody>
