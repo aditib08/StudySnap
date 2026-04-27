@@ -18,8 +18,10 @@ function sortEntriesDesc(map) {
 
 const DETAIL_KEYS = {
   totalPosts: "totalPosts",
+  approvedSnaps: "approvedSnaps",
   uniquePosters: "uniquePosters",
   registeredUsers: "registeredUsers",
+  avgComments: "avgComments",
   snaps7d: "snaps7d",
   withPhoto: "withPhoto",
   textOnly: "textOnly",
@@ -33,8 +35,10 @@ const DETAIL_KEYS = {
 
 const DETAIL_TITLES = {
   [DETAIL_KEYS.totalPosts]: "All snaps",
+  [DETAIL_KEYS.approvedSnaps]: "Approved snaps",
   [DETAIL_KEYS.uniquePosters]: "Unique posters (by snap count)",
   [DETAIL_KEYS.registeredUsers]: "Registered users",
+  [DETAIL_KEYS.avgComments]: "Comments per post",
   [DETAIL_KEYS.snaps7d]: "Snaps in the last 7 days",
   [DETAIL_KEYS.withPhoto]: "Snaps with a photo",
   [DETAIL_KEYS.textOnly]: "Text-only snaps",
@@ -114,8 +118,10 @@ export default function Admin() {
         let postsLast7Days = 0;
         let totalUpvotes = 0;
         let totalDownvotes = 0;
+        let approvedSnapsCount = 0;
         const now = Date.now();
         const weekMs = 7 * 24 * 60 * 60 * 1000;
+        const commentsByPostId = new Map();
 
         for (const p of posts) {
           const aid = typeof p.authorId === "string" ? p.authorId : "";
@@ -132,7 +138,29 @@ export default function Admin() {
           const downs = Array.isArray(p.downvotes) ? p.downvotes.length : 0;
           totalUpvotes += ups;
           totalDownvotes += downs;
+          if (ups > downs) approvedSnapsCount += 1;
         }
+
+        await Promise.all(
+          posts.map(async (p) => {
+            try {
+              const commentsSnap = await getDocs(
+                collection(db, "posts", p.id, "comments")
+              );
+              commentsByPostId.set(p.id, commentsSnap.size);
+            } catch {
+              commentsByPostId.set(p.id, 0);
+            }
+          })
+        );
+        const postsWithCommentCount = posts.map((p) => ({
+          ...p,
+          commentCount: commentsByPostId.get(p.id) ?? 0,
+        }));
+        let totalComments = 0;
+        commentsByPostId.forEach((count) => {
+          totalComments += count;
+        });
 
         const topPosterEntries = sortEntriesDesc(byAuthor).slice(0, 15);
         const topPosters = await Promise.all(
@@ -190,14 +218,19 @@ export default function Admin() {
 
         if (cancelled) return;
 
-        setRawData({ posts, users, pendingRequests: pendingList });
+        setRawData({ posts: postsWithCommentCount, users, pendingRequests: pendingList });
         setStats({
-          totalPosts: posts.length,
+          totalPosts: postsWithCommentCount.length,
+          approvedSnapsCount,
           uniquePosters: byAuthor.size,
           postsWithImage,
-          postsTextOnly: posts.length - postsWithImage,
+          postsTextOnly: postsWithCommentCount.length - postsWithImage,
           postsLast7Days,
           totalRegisteredUsers: usersSnap.size,
+          avgCommentsPerPost:
+            postsWithCommentCount.length > 0
+              ? totalComments / postsWithCommentCount.length
+              : 0,
           pendingFriendRequests: pendingList.length,
           totalUpvotes,
           totalDownvotes,
@@ -262,6 +295,37 @@ export default function Admin() {
             up: Array.isArray(p.upvotes) ? p.upvotes.length : 0,
             down: Array.isArray(p.downvotes) ? p.downvotes.length : 0,
           }));
+      case DETAIL_KEYS.approvedSnaps:
+        return posts
+          .filter((p) => {
+            const up = Array.isArray(p.upvotes) ? p.upvotes.length : 0;
+            const down = Array.isArray(p.downvotes) ? p.downvotes.length : 0;
+            return up > down;
+          })
+          .map((p) => ({
+            id: p.id,
+            author:
+              userLabelById.get(p.authorId) ||
+              (p.authorLabel ?? "").trim() ||
+              p.authorId ||
+              "—",
+            preview: ((p.body ?? "") + "").slice(0, 120),
+            up: Array.isArray(p.upvotes) ? p.upvotes.length : 0,
+            down: Array.isArray(p.downvotes) ? p.downvotes.length : 0,
+          }));
+      case DETAIL_KEYS.avgComments:
+        return posts
+          .map((p) => ({
+            id: p.id,
+            author:
+              userLabelById.get(p.authorId) ||
+              (p.authorLabel ?? "").trim() ||
+              p.authorId ||
+              "—",
+            preview: ((p.body ?? "") + "").slice(0, 120),
+            commentCount: Number.isFinite(p.commentCount) ? p.commentCount : 0,
+          }))
+          .sort((a, b) => b.commentCount - a.commentCount);
       case DETAIL_KEYS.uniquePosters: {
         const m = new Map();
         for (const p of posts) {
@@ -469,6 +533,11 @@ export default function Admin() {
               value={stats.totalPosts}
             />
             <StatCard
+              detail={DETAIL_KEYS.approvedSnaps}
+              label="Approved snaps"
+              value={stats.approvedSnapsCount}
+            />
+            <StatCard
               detail={DETAIL_KEYS.uniquePosters}
               label="Unique posters"
               value={stats.uniquePosters}
@@ -477,6 +546,11 @@ export default function Admin() {
               detail={DETAIL_KEYS.registeredUsers}
               label="Registered users"
               value={stats.totalRegisteredUsers}
+            />
+            <StatCard
+              detail={DETAIL_KEYS.avgComments}
+              label="Average comment number"
+              value={stats.avgCommentsPerPost.toFixed(2)}
             />
             <StatCard
               detail={DETAIL_KEYS.snaps7d}
@@ -669,6 +743,33 @@ function AdminDetailTable({ detailKey, rows }) {
     );
   }
 
+  if (detailKey === DETAIL_KEYS.approvedSnaps) {
+    return (
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Post ID</th>
+            <th>Author</th>
+            <th>Preview</th>
+            <th>👍</th>
+            <th>👎</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td className="admin-table-mono">{r.id.slice(0, 12)}…</td>
+              <td>{r.author}</td>
+              <td>{r.preview || "—"}</td>
+              <td>{r.up}</td>
+              <td>{r.down}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
   if (detailKey === DETAIL_KEYS.uniquePosters) {
     return (
       <table className="admin-table">
@@ -739,6 +840,31 @@ function AdminDetailTable({ detailKey, rows }) {
               <td className="admin-table-mono">{r.id.slice(0, 12)}…</td>
               <td>{r.author}</td>
               <td>{r.preview || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (detailKey === DETAIL_KEYS.avgComments) {
+    return (
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Post ID</th>
+            <th>Author</th>
+            <th>Preview</th>
+            <th>Comments</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td className="admin-table-mono">{r.id.slice(0, 12)}…</td>
+              <td>{r.author}</td>
+              <td>{r.preview || "—"}</td>
+              <td>{r.commentCount}</td>
             </tr>
           ))}
         </tbody>
