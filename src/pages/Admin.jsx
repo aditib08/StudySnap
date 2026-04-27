@@ -533,39 +533,9 @@ export default function Admin() {
               value={stats.totalPosts}
             />
             <StatCard
-              detail={DETAIL_KEYS.approvedSnaps}
-              label="Approved snaps"
-              value={stats.approvedSnapsCount}
-            />
-            <StatCard
-              detail={DETAIL_KEYS.uniquePosters}
-              label="Unique posters"
-              value={stats.uniquePosters}
-            />
-            <StatCard
               detail={DETAIL_KEYS.registeredUsers}
               label="Registered users"
               value={stats.totalRegisteredUsers}
-            />
-            <StatCard
-              detail={DETAIL_KEYS.avgComments}
-              label="Average comment number"
-              value={stats.avgCommentsPerPost.toFixed(2)}
-            />
-            <StatCard
-              detail={DETAIL_KEYS.snaps7d}
-              label="Snaps (last 7 days)"
-              value={stats.postsLast7Days}
-            />
-            <StatCard
-              detail={DETAIL_KEYS.withPhoto}
-              label="Snaps with photo"
-              value={stats.postsWithImage}
-            />
-            <StatCard
-              detail={DETAIL_KEYS.textOnly}
-              label="Text-only snaps"
-              value={stats.postsTextOnly}
             />
             <StatCard
               detail={DETAIL_KEYS.thumbsUp}
@@ -578,13 +548,18 @@ export default function Admin() {
               value={stats.totalDownvotes}
             />
             <StatCard
-              detail={DETAIL_KEYS.pendingRequests}
-              label="Pending friend requests"
-              value={stats.pendingFriendRequests ?? "—"}
+              detail={DETAIL_KEYS.avgComments}
+              label="Average comment number"
+              value={stats.avgCommentsPerPost.toFixed(2)}
+            />
+            <StatCard
+              detail={DETAIL_KEYS.approvedSnaps}
+              label="Approved snaps"
+              value={stats.approvedSnapsCount}
             />
             <StatCard
               detail={DETAIL_KEYS.friendLinks}
-              label="Friend links (approx.)"
+              label="Friend links"
               value={stats.acceptedFriendshipsApprox}
               note={
                 <>
@@ -602,68 +577,6 @@ export default function Admin() {
               label="Avg streak (all profiles)"
               value={stats.avgStreakAmongUsers.toFixed(1)}
             />
-          </section>
-
-          <section className="card admin-table-section" aria-labelledby="admin-top-posters">
-            <h2 id="admin-top-posters" className="admin-section-title">
-              Top posters
-            </h2>
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">User</th>
-                    <th scope="col">Email</th>
-                    <th scope="col">Snaps</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.topPosters.map((row, i) => (
-                    <tr key={row.uid}>
-                      <td>{i + 1}</td>
-                      <td>{row.label}</td>
-                      <td className="admin-table-mono">{row.email || "—"}</td>
-                      <td>{row.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="card admin-table-section" aria-labelledby="admin-top-streaks">
-            <h2 id="admin-top-streaks" className="admin-section-title">
-              Top current streaks
-            </h2>
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">User</th>
-                    <th scope="col">Streak (days)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.topStreaks.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="admin-table-empty">
-                        No streak data yet
-                      </td>
-                    </tr>
-                  ) : (
-                    stats.topStreaks.map((row, i) => (
-                      <tr key={row.uid}>
-                        <td>{i + 1}</td>
-                        <td>{row.label}</td>
-                        <td>{row.streak}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
           </section>
         </>
       ) : null}
