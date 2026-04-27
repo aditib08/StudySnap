@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { app, auth, db } from "../firebase.js";
+import { auth, db } from "../firebase.js";
 
-const STRIPE_PUBLISHABLE_KEY =
-  "pk_test_51TQevBEGomazt6G3n6YPWdqGllDVciffiJ43j3dPvHEubrQ1HOPXJhYw4DzbJKiTubgOiJnAQCoWEKi9MHHk3MsK00E3zPpQ5a";
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_6oU3cv4zsabLeoodgKdMI00";
 
 function readableCheckoutError(err) {
   const code = String(err?.code ?? "");
@@ -60,16 +59,6 @@ export default function PremiumGate({ isOpen, onClose }) {
     }
   }, [isOpen, onClose, plan]);
 
-  const checkoutPayload = useMemo(() => {
-    const origin = window.location.origin;
-    const profileUrl = `${origin}/profile`;
-    return {
-      uid,
-      successUrl: `${profileUrl}?premium=success`,
-      cancelUrl: `${profileUrl}?premium=cancelled`,
-    };
-  }, [uid]);
-
   async function startCheckout() {
     setError("");
     if (!uid) {
@@ -78,40 +67,15 @@ export default function PremiumGate({ isOpen, onClose }) {
     }
     setCheckoutBusy(true);
     try {
-      const projectId =
-        import.meta.env.VITE_FIREBASE_PROJECT_ID || app.options.projectId;
-      if (!projectId) {
-        throw new Error(
-          "Missing Firebase project id. Set VITE_FIREBASE_PROJECT_ID."
-        );
+      if (
+        !STRIPE_PAYMENT_LINK ||
+        STRIPE_PAYMENT_LINK.includes("YOUR_LINK_HERE")
+      ) {
+        throw new Error("Set STRIPE_PAYMENT_LINK in PremiumGate.");
       }
-      const endpoint = `https://us-central1-${projectId}.cloudfunctions.net/createCheckoutSession`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-stripe-publishable-key": STRIPE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify(checkoutPayload),
-      });
-      const data = await response.json();
-      const url = data?.url;
-      if (!response.ok) {
-        throw new Error(data?.error || "Checkout request failed.");
-      }
-      if (!url) {
-        throw new Error("Checkout URL was not returned.");
-      }
-      window.location.assign(url);
+      window.location.href = STRIPE_PAYMENT_LINK;
     } catch (err) {
-      const raw = String(err?.message ?? "");
-      if (raw.toLowerCase().includes("failed to fetch")) {
-        setError(
-          "Cannot reach checkout service yet. Deploy functions and verify CORS is enabled."
-        );
-      } else {
-        setError(readableCheckoutError(err));
-      }
+      setError(readableCheckoutError(err));
       setCheckoutBusy(false);
     }
   }

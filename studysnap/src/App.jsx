@@ -10,6 +10,7 @@ import Feed from "./pages/Feed.jsx";
 import Schedule from "./pages/Schedule.jsx";
 import Profile from "./pages/Profile.jsx";
 import Admin from "./pages/Admin.jsx";
+import Success from "./pages/Success.jsx";
 import PremiumRoute from "./components/PremiumRoute.jsx";
 
 export default function App() {
@@ -65,6 +66,7 @@ export default function App() {
             }
           />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/success" element={<Success />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<Navigate to="/feed" replace />} />
         </Routes>
