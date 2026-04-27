@@ -18,7 +18,6 @@ import { uploadHomeworkImage } from "../uploadHomeworkImage.js";
 import PostCard from "../components/PostCard.jsx";
 import SnapPrompt from "../components/SnapPrompt.jsx";
 import AddFriend from "../components/AddFriend.jsx";
-import FriendsList from "../components/FriendsList.jsx";
 import FriendRequests from "../components/FriendRequests.jsx";
 
 function chunkArray(arr, size) {
@@ -176,7 +175,6 @@ export default function Feed() {
     <div className="page feed-page">
       <div className="feed-layout">
         <div className="feed-sidebar-column">
-          <FriendsList />
           <FriendRequests />
         </div>
         <div className="feed-main-column">

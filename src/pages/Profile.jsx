@@ -4,6 +4,8 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
 import { ensureUserProfile } from "../userProfile.js";
 import { recomputeUserStreak } from "../userStreak.js";
+import FriendsList from "../components/FriendsList.jsx";
+import PremiumGate from "../components/PremiumGate.jsx";
 import {
   resolveAuthorLabel,
   syncPostAuthorLabels,
@@ -15,8 +17,11 @@ export default function Profile() {
   const [email, setEmail] = useState(() => auth.currentUser?.email ?? "");
   const [formName, setFormName] = useState("");
   const [savedDisplayName, setSavedDisplayName] = useState("");
+  const [friendCount, setFriendCount] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
   const [longestStreak, setLongestStreak] = useState(0);
+  const [plan, setPlan] = useState("free");
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
@@ -33,6 +38,7 @@ export default function Profile() {
     if (!uid) {
       setFormName("");
       setSavedDisplayName("");
+      setFriendCount(0);
       setStreakCount(0);
       setLongestStreak(0);
       return;
@@ -43,8 +49,12 @@ export default function Profile() {
       const name = (d?.displayName ?? "").trim();
       setSavedDisplayName(name);
       setFormName(name);
+      const friends = Array.isArray(d?.friends) ? d.friends.length : 0;
+      setFriendCount(Math.max(0, friends));
       const sc = d?.streakCount;
       const ls = d?.longestStreak;
+      const nextPlan = String(d?.plan ?? "free").toLowerCase();
+      setPlan(nextPlan === "premium" ? "premium" : "free");
       setStreakCount(Number.isFinite(sc) ? Math.max(0, sc) : 0);
       setLongestStreak(Number.isFinite(ls) ? Math.max(0, ls) : 0);
     });
@@ -121,6 +131,12 @@ export default function Profile() {
             <dt>Name shown in StudySnap</dt>
             <dd>{showName || email || "—"}</dd>
           </div>
+          <div className="profile-dl-row">
+            <dt>Friends</dt>
+            <dd>
+              <strong>{friendCount}</strong> {friendCount === 1 ? "friend" : "friends"}
+            </dd>
+          </div>
         </dl>
 
         <form className="profile-display-form" onSubmit={handleSaveDisplayName}>
@@ -160,31 +176,53 @@ export default function Profile() {
         </form>
       </section>
 
-      <section className="card profile-card" aria-labelledby="profile-streaks-heading">
-        <h2 id="profile-streaks-heading" className="profile-section-title">
-          Streaks
-        </h2>
-        <dl className="profile-dl profile-dl--streaks">
-          <div className="profile-dl-row">
-            <dt>
-              <span aria-hidden="true">🔥</span> Current streak
-            </dt>
-            <dd>
-              <strong>{streakCount}</strong>{" "}
-              {streakCount === 1 ? "day" : "days"} in a row
-            </dd>
-          </div>
-          <div className="profile-dl-row">
-            <dt>
-              <span aria-hidden="true">🏆</span> Longest streak
-            </dt>
-            <dd>
-              <strong>{longestStreak}</strong>{" "}
-              {longestStreak === 1 ? "day" : "days"} (best run of confirmed snaps)
-            </dd>
-          </div>
-        </dl>
-      </section>
+      <FriendsList />
+
+      {plan === "premium" ? (
+        <section className="card profile-card" aria-labelledby="profile-streaks-heading">
+          <h2 id="profile-streaks-heading" className="profile-section-title">
+            Streaks
+          </h2>
+          <dl className="profile-dl profile-dl--streaks">
+            <div className="profile-dl-row">
+              <dt>
+                <span aria-hidden="true">🔥</span> Current streak
+              </dt>
+              <dd>
+                <strong>{streakCount}</strong>{" "}
+                {streakCount === 1 ? "day" : "days"} in a row
+              </dd>
+            </div>
+            <div className="profile-dl-row">
+              <dt>
+                <span aria-hidden="true">🏆</span> Longest streak
+              </dt>
+              <dd>
+                <strong>{longestStreak}</strong>{" "}
+                {longestStreak === 1 ? "day" : "days"} (best run of confirmed snaps)
+              </dd>
+            </div>
+          </dl>
+        </section>
+      ) : (
+        <section className="card profile-card" aria-labelledby="profile-streaks-locked-heading">
+          <h2 id="profile-streaks-locked-heading" className="profile-section-title">
+            Streaks (Premium)
+          </h2>
+          <p className="page-lead">Upgrade to unlock streak details.</p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setShowPremiumModal(true)}
+          >
+            Upgrade
+          </button>
+        </section>
+      )}
+      <PremiumGate
+        isOpen={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
     </div>
   );
 }

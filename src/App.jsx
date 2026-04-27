@@ -10,6 +10,7 @@ import Feed from "./pages/Feed.jsx";
 import Schedule from "./pages/Schedule.jsx";
 import Profile from "./pages/Profile.jsx";
 import Admin from "./pages/Admin.jsx";
+import PremiumRoute from "./components/PremiumRoute.jsx";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -55,7 +56,14 @@ export default function App() {
           <Route path="/" element={<Navigate to="/feed" replace />} />
           <Route path="/login" element={<Navigate to="/feed" replace />} />
           <Route path="/feed" element={<Feed />} />
-          <Route path="/schedule" element={<Schedule />} />
+          <Route
+            path="/schedule"
+            element={
+              <PremiumRoute>
+                <Schedule />
+              </PremiumRoute>
+            }
+          />
           <Route path="/profile" element={<Profile />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<Navigate to="/feed" replace />} />
