@@ -5,7 +5,7 @@ import {
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { auth } from "../firebase.js";
-import { ensureUserProfile } from "../userProfile.js";
+import { ensureUserProfile, recordUserLogin } from "../userProfile.js";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,6 +26,7 @@ export default function Login() {
         await createUserWithEmailAndPassword(auth, email.trim(), password);
       }
       await ensureUserProfile(auth.currentUser);
+      await recordUserLogin(auth.currentUser);
       navigate("/feed", { replace: true });
     } catch (err) {
       const code = err?.code ?? "";

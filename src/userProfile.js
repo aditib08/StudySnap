@@ -1,4 +1,10 @@
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  increment,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 import { db } from "./firebase.js";
 
 /** Lowercase trimmed email for Firestore queries and `users/{uid}.email` */
@@ -21,4 +27,17 @@ export async function ensureUserProfile(user) {
   } else {
     await setDoc(ref, { email }, { merge: true });
   }
+}
+
+export async function recordUserLogin(user) {
+  if (!user?.uid) return;
+  const ref = doc(db, "users", user.uid);
+  await setDoc(
+    ref,
+    {
+      loginCount: increment(1),
+      lastLoginAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }

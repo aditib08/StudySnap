@@ -12,6 +12,7 @@ const DETAIL_KEYS = {
   totalPosts: "totalPosts",
   approvedSnaps: "approvedSnaps",
   registeredUsers: "registeredUsers",
+  avgLoginsPerDay: "avgLoginsPerDay",
   avgComments: "avgComments",
   thumbsUp: "thumbsUp",
   thumbsDown: "thumbsDown",
@@ -24,6 +25,7 @@ const DETAIL_TITLES = {
   [DETAIL_KEYS.totalPosts]: "All snaps",
   [DETAIL_KEYS.approvedSnaps]: "Approved snaps",
   [DETAIL_KEYS.registeredUsers]: "Registered users",
+  [DETAIL_KEYS.avgLoginsPerDay]: "Logins per day by user",
   [DETAIL_KEYS.avgComments]: "Comments per post",
   [DETAIL_KEYS.thumbsUp]: "Thumbs up — per post",
   [DETAIL_KEYS.thumbsDown]: "Thumbs down — per post",
@@ -113,9 +115,13 @@ export default function Admin() {
           totalComments += count;
         });
 
+        const nowMs = Date.now();
+        const msPerDay = 24 * 60 * 60 * 1000;
         let totalFriendEdges = 0;
         let streakSum = 0;
         let streakMax = 0;
+        let totalLogins = 0;
+        let totalActiveDays = 0;
         usersSnap.forEach((docu) => {
           const d = docu.data();
           const f = d?.friends;
@@ -125,6 +131,15 @@ export default function Admin() {
             streakSum += s;
             if (s > streakMax) streakMax = s;
           }
+          const loginCount = Number.isFinite(d?.loginCount)
+            ? Math.max(0, d.loginCount)
+            : 0;
+          const createdAtMs = d?.createdAt?.toDate?.()?.getTime?.();
+          const daysActive = Number.isFinite(createdAtMs)
+            ? Math.max(1, Math.ceil((nowMs - createdAtMs) / msPerDay))
+            : 1;
+          totalLogins += loginCount;
+          totalActiveDays += daysActive;
         });
 
         if (cancelled) return;
@@ -141,6 +156,8 @@ export default function Admin() {
           totalUpvotes,
           totalDownvotes,
           acceptedFriendshipsApprox: Math.floor(totalFriendEdges / 2),
+          avgLoginsPerDay:
+            totalActiveDays > 0 ? totalLogins / totalActiveDays : 0,
           avgStreakAmongUsers:
             usersSnap.size > 0 ? streakSum / usersSnap.size : 0,
           maxStreakSeen: streakMax,
@@ -238,6 +255,32 @@ export default function Admin() {
             streak: Number.isFinite(u.streakCount) ? u.streakCount : "—",
           }))
           .sort((a, b) => a.email.localeCompare(b.email));
+      case DETAIL_KEYS.avgLoginsPerDay: {
+        const nowMs = Date.now();
+        const msPerDay = 24 * 60 * 60 * 1000;
+        return users
+          .map((u) => {
+            const createdAtMs = u?.createdAt?.toDate?.()?.getTime?.();
+            const daysActive = Number.isFinite(createdAtMs)
+              ? Math.max(1, Math.ceil((nowMs - createdAtMs) / msPerDay))
+              : 1;
+            const logins = Number.isFinite(u?.loginCount)
+              ? Math.max(0, u.loginCount)
+              : 0;
+            return {
+              id: u.id,
+              label:
+                (u.displayName ?? "").trim() ||
+                (u.email ?? "").trim() ||
+                u.id.slice(0, 8),
+              email: (u.email ?? "").trim() || "—",
+              loginCount: logins,
+              activeDays: daysActive,
+              loginsPerDay: logins / daysActive,
+            };
+          })
+          .sort((a, b) => b.loginsPerDay - a.loginsPerDay);
+      }
       case DETAIL_KEYS.thumbsUp:
         return posts
           .map((p) => ({
@@ -368,6 +411,11 @@ export default function Admin() {
               detail={DETAIL_KEYS.registeredUsers}
               label="Registered users"
               value={stats.totalRegisteredUsers}
+            />
+            <StatCard
+              detail={DETAIL_KEYS.avgLoginsPerDay}
+              label="Avg logins/day"
+              value={stats.avgLoginsPerDay.toFixed(2)}
             />
             <StatCard
               detail={DETAIL_KEYS.thumbsUp}
@@ -560,6 +608,35 @@ function AdminDetailTable({ detailKey, rows }) {
               <td>{r.author}</td>
               <td>{r.preview || "—"}</td>
               <td>{r.commentCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (detailKey === DETAIL_KEYS.avgLoginsPerDay) {
+    return (
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>User</th>
+            <th>Email</th>
+            <th>Total logins</th>
+            <th>Active days</th>
+            <th>Logins/day</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.id}>
+              <td>{i + 1}</td>
+              <td>{r.label}</td>
+              <td className="admin-table-mono">{r.email}</td>
+              <td>{r.loginCount}</td>
+              <td>{r.activeDays}</td>
+              <td>{r.loginsPerDay.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
