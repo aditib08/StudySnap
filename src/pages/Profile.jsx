@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { onAuthStateChanged, reload, updateProfile } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
 import { ensureUserProfile } from "../userProfile.js";
 import { recomputeUserStreak } from "../userStreak.js";
@@ -12,6 +12,28 @@ import {
   syncUserCommentLabels,
 } from "../syncPostAuthorLabels.js";
 
+function getBlockDurationMinutes(block) {
+  const [sh = 0, sm = 0] = String(block?.time ?? "00:00")
+    .split(":")
+    .map(Number);
+  const [eh = sh, em = sm] = String(block?.endTime ?? block?.time ?? "00:00")
+    .split(":")
+    .map(Number);
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  return end - start;
+}
+
+function formatMinutes(totalMin) {
+  const mins = Math.max(0, Math.round(totalMin));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 export default function Profile() {
   const [uid, setUid] = useState(() => auth.currentUser?.uid ?? null);
   const [email, setEmail] = useState(() => auth.currentUser?.email ?? "");
@@ -20,6 +42,7 @@ export default function Profile() {
   const [friendCount, setFriendCount] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
   const [longestStreak, setLongestStreak] = useState(0);
+  const [scheduleBlocks, setScheduleBlocks] = useState([]);
   const [plan, setPlan] = useState("free");
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,6 +64,7 @@ export default function Profile() {
       setFriendCount(0);
       setStreakCount(0);
       setLongestStreak(0);
+      setScheduleBlocks([]);
       return;
     }
     const ref = doc(db, "users", uid);
@@ -57,6 +81,14 @@ export default function Profile() {
       setPlan(nextPlan === "premium" ? "premium" : "free");
       setStreakCount(Number.isFinite(sc) ? Math.max(0, sc) : 0);
       setLongestStreak(Number.isFinite(ls) ? Math.max(0, ls) : 0);
+    });
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const ref = collection(db, "users", uid, "scheduleBlocks");
+    return onSnapshot(ref, (snap) => {
+      setScheduleBlocks(snap.docs.map((d) => d.data()));
     });
   }, [uid]);
 
@@ -102,6 +134,26 @@ export default function Profile() {
     savedDisplayName ||
     auth.currentUser?.displayName?.trim() ||
     "";
+  const totalMinutes = scheduleBlocks.reduce(
+    (sum, b) => sum + getBlockDurationMinutes(b),
+    0
+  );
+  const avgSessionMinutes =
+    scheduleBlocks.length > 0 ? totalMinutes / scheduleBlocks.length : 0;
+  const byDay = new Map();
+  const byLabel = new Map();
+  for (const block of scheduleBlocks) {
+    const duration = getBlockDurationMinutes(block);
+    const day = String(block?.day ?? "Unknown");
+    const label = String(block?.label ?? "Unlabeled").trim() || "Unlabeled";
+    byDay.set(day, (byDay.get(day) || 0) + duration);
+    byLabel.set(label, (byLabel.get(label) || 0) + duration);
+  }
+  const dayEntries = [...byDay.entries()].sort((a, b) => b[1] - a[1]);
+  const labelEntries = [...byLabel.entries()].sort((a, b) => b[1] - a[1]);
+  const mostFocusedDay = dayEntries[0] ?? null;
+  const leastFocusedDay = dayEntries[dayEntries.length - 1] ?? null;
+  const topAssignments = labelEntries.slice(0, 3);
 
   if (!uid) {
     return (
@@ -179,31 +231,78 @@ export default function Profile() {
       <FriendsList />
 
       {plan === "premium" ? (
-        <section className="card profile-card" aria-labelledby="profile-streaks-heading">
-          <h2 id="profile-streaks-heading" className="profile-section-title">
-            Streaks
-          </h2>
-          <dl className="profile-dl profile-dl--streaks">
-            <div className="profile-dl-row">
-              <dt>
-                <span aria-hidden="true">🔥</span> Current streak
-              </dt>
-              <dd>
-                <strong>{streakCount}</strong>{" "}
-                {streakCount === 1 ? "day" : "days"} in a row
-              </dd>
-            </div>
-            <div className="profile-dl-row">
-              <dt>
-                <span aria-hidden="true">🏆</span> Longest streak
-              </dt>
-              <dd>
-                <strong>{longestStreak}</strong>{" "}
-                {longestStreak === 1 ? "day" : "days"} (best run of confirmed snaps)
-              </dd>
-            </div>
-          </dl>
-        </section>
+        <>
+          <section className="card profile-card" aria-labelledby="profile-streaks-heading">
+            <h2 id="profile-streaks-heading" className="profile-section-title">
+              Streaks
+            </h2>
+            <dl className="profile-dl profile-dl--streaks">
+              <div className="profile-dl-row">
+                <dt>
+                  <span aria-hidden="true">🔥</span> Current streak
+                </dt>
+                <dd>
+                  <strong>{streakCount}</strong>{" "}
+                  {streakCount === 1 ? "day" : "days"} in a row
+                </dd>
+              </div>
+              <div className="profile-dl-row">
+                <dt>
+                  <span aria-hidden="true">🏆</span> Longest streak
+                </dt>
+                <dd>
+                  <strong>{longestStreak}</strong>{" "}
+                  {longestStreak === 1 ? "day" : "days"} (best run of confirmed snaps)
+                </dd>
+              </div>
+            </dl>
+          </section>
+          <section className="card profile-card" aria-labelledby="profile-insights-heading">
+            <h2 id="profile-insights-heading" className="profile-section-title">
+              Study habits insights
+            </h2>
+            {scheduleBlocks.length === 0 ? (
+              <p className="page-lead">
+                Add schedule blocks to unlock personalized study habit analytics.
+              </p>
+            ) : (
+              <>
+                <dl className="profile-dl">
+                  <div className="profile-dl-row">
+                    <dt>Average session length</dt>
+                    <dd>
+                      <strong>{formatMinutes(avgSessionMinutes)}</strong>
+                    </dd>
+                  </div>
+                  <div className="profile-dl-row">
+                    <dt>Most focused day</dt>
+                    <dd>
+                      <strong>{mostFocusedDay?.[0] ?? "—"}</strong>{" "}
+                      {mostFocusedDay ? `(${formatMinutes(mostFocusedDay[1])})` : ""}
+                    </dd>
+                  </div>
+                  <div className="profile-dl-row">
+                    <dt>Least focused day</dt>
+                    <dd>
+                      <strong>{leastFocusedDay?.[0] ?? "—"}</strong>{" "}
+                      {leastFocusedDay ? `(${formatMinutes(leastFocusedDay[1])})` : ""}
+                    </dd>
+                  </div>
+                </dl>
+                <h3 className="profile-section-title">Top classes/assignments by time</h3>
+                <ul className="friends-list">
+                  {topAssignments.map(([label, minutes]) => (
+                    <li key={label} className="friends-list-item">
+                      <span className="friends-list-name">
+                        {label} - {formatMinutes(minutes)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+        </>
       ) : (
         <section className="card profile-card" aria-labelledby="profile-streaks-locked-heading">
           <h2 id="profile-streaks-locked-heading" className="profile-section-title">
