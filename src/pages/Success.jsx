@@ -6,35 +6,45 @@ import { auth, db } from "../firebase.js";
 
 export default function Success() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState("Finalizing your premium upgrade…");
+  const [status, setStatus] = useState("Activating your premium...");
 
   useEffect(() => {
-    let timerId;
+    let timeoutId;
+    let redirectId;
+    let resolved = false;
+
+    timeoutId = window.setTimeout(() => {
+      if (resolved) return;
+      resolved = true;
+      setStatus("Could not confirm login. Redirecting to login…");
+      navigate("/login", { replace: true });
+    }, 5000);
+
     const unsub = onAuthStateChanged(auth, (user) => {
+      if (resolved) return;
       if (!user?.uid) {
-        setStatus("Sign in required. Redirecting…");
-        timerId = window.setTimeout(() => {
-          navigate("/profile", { replace: true });
-        }, 1200);
         return;
       }
+      resolved = true;
+      window.clearTimeout(timeoutId);
       setDoc(doc(db, "users", user.uid), { plan: "premium" }, { merge: true })
         .then(() => {
-          setStatus("Premium unlocked! Taking you home…");
-          timerId = window.setTimeout(() => {
-            navigate("/", { replace: true });
+          setStatus("Premium unlocked! Taking you back to your profile…");
+          redirectId = window.setTimeout(() => {
+            navigate("/profile", { replace: true });
           }, 2000);
         })
         .catch(() => {
           setStatus("Could not update premium status. Redirecting to profile…");
-          timerId = window.setTimeout(() => {
+          redirectId = window.setTimeout(() => {
             navigate("/profile", { replace: true });
           }, 2000);
         });
     });
     return () => {
       unsub();
-      if (timerId) window.clearTimeout(timerId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      if (redirectId) window.clearTimeout(redirectId);
     };
   }, [navigate]);
 

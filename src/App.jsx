@@ -42,6 +42,7 @@ export default function App() {
     return (
       <div className="app">
         <Routes>
+          <Route path="/success" element={<Success />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Login />} />
         </Routes>
